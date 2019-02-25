@@ -89,12 +89,38 @@ class SkillIotControl(MycroftSkill):
                 return action
         raise Exception("No action found!")
 
-    # TODO - Entity is not necessarily light related, so this has to be more generic. We'll have to look for a THING after catching the intent
-    @intent_handler(IntentBuilder('PowerLights')
-                    .one_of('LIGHTS', 'ENTITY')
+    @intent_handler(IntentBuilder('PowerEntity')
+                    .require('ENTITY')
                     .one_of('ON', 'OFF', 'TOGGLE'))
     @_handle_iot_request
-    def handle_lights_on(self, message: Message):
+    def handle_entity_power(self, message: Message):
+        self.speak("IoT power request")
+        data = message.data
+        if 'TOGGLE' in data and ('ON' in data or 'OFF' in data):
+            del(data['TOGGLE'])
+        action = self._get_action_from_data(data)
+
+        request = IoTRequest(
+            action=action,
+            entity=data.get('Entity'),
+        )
+
+        data[IoTRequest.__name__] = repr(request)
+
+        self.bus.emit(Message(BusKeys.TRIGGER, data))
+
+    # TODO - Entity is not necessarily light related,
+    #  so this has to be more generic. We'll have to
+    #  look for a THING after catching the intent
+    #  (see above). May be best to make nearly duplicate
+    #  handlers to cover generic and THING specific
+    #  (as currently written).
+    @intent_handler(IntentBuilder('PowerLights')
+                    .require('LIGHTS')
+                    .one_of('ON', 'OFF', 'TOGGLE')
+                    .optionally('ENTITY'))
+    @_handle_iot_request
+    def handle_lights_power(self, message: Message):
         self.speak("Lights power request")
         data = message.data
         if 'TOGGLE' in data and ('ON' in data or 'OFF' in data):
