@@ -26,6 +26,9 @@ LOGGER = getLogger(__name__)
 
 IOT_REQUEST_ID = "iot_request_id"
 
+# TODO Exceptions should be custom types
+# TODO more intent handlers
+
 
 def _handle_iot_request(handler_function):
     def tracking_intent_handler(self, message):
@@ -34,7 +37,7 @@ def _handle_iot_request(handler_function):
         self._current_requests[id] = []
         handler_function(self, message)
         self.schedule_event(self._run,
-                            5,
+                            1,  # TODO make this timeout a setting
                             data={IOT_REQUEST_ID: id},
                             name="RunIotRequest")
     return tracking_intent_handler
@@ -72,6 +75,7 @@ class SkillIotControl(MycroftSkill):
 
         del(self._current_requests[id])
         winner = self._pick_winner(candidates)
+        LOGGER.info("Winner data is: " + str(winner.data))
         self.bus.emit(Message(BusKeys.RUN + winner.data["skill_id"], winner.data))
 
     def _pick_winner(self, candidates: [Message]):
@@ -79,16 +83,26 @@ class SkillIotControl(MycroftSkill):
         winner = candidates[0]
         return winner
 
-    @intent_handler(IntentBuilder('LightsOn')
-                    .require('Lights')
-                    .require('On'))
+    def _get_action_from_data(self, data: dict):
+        for action in Action:
+            if action.name in data:
+                return action
+        raise Exception("No action found!")
+
+    # TODO - Entity is not necessarily light related, so this has to be more generic. We'll have to look for a THING after catching the intent
+    @intent_handler(IntentBuilder('PowerLights')
+                    .one_of('LIGHTS', 'ENTITY')
+                    .one_of('ON', 'OFF', 'TOGGLE'))
     @_handle_iot_request
     def handle_lights_on(self, message: Message):
-        self.speak("Lights on request")
+        self.speak("Lights power request")
         data = message.data
+        if 'TOGGLE' in data and ('ON' in data or 'OFF' in data):
+            del(data['TOGGLE'])
+        action = self._get_action_from_data(data)
 
         request = IoTRequest(
-            action=Action.ON,
+            action=action,
             thing=Thing.LIGHT,
             entity=data.get('Entity'),
             scene=None
@@ -97,6 +111,27 @@ class SkillIotControl(MycroftSkill):
         data[IoTRequest.__name__] = repr(request)
 
         self.bus.emit(Message(BusKeys.TRIGGER, data))
+
+    # @intent_handler(IntentBuilder("LightsBrightness")
+    #                 .one_of("INCREASE", "DECREASE")
+    #                 .one_of("LIGHTS", "ENTITY")
+    #                 .optionally("BRIGHTNESS"))
+    # @_handle_iot_request
+    # def handle_lights_on(self, message: Message):
+    #     self.speak("Lights power request")
+    #     data = message.data
+    #     action = self._get_action_from_data(data)
+    #
+    #     request = IoTRequest(
+    #         action=action,
+    #         thing=Thing.LIGHT,
+    #         entity=data.get('Entity'),
+    #         scene=None
+    #     )
+    #
+    #     data[IoTRequest.__name__] = repr(request)
+    #
+    #     self.bus.emit(Message(BusKeys.TRIGGER, data))
 
 
 def create_skill():
