@@ -17,7 +17,7 @@ from adapt.intent import IntentBuilder
 from mycroft import MycroftSkill, intent_handler
 from mycroft.messagebus.message import Message
 from mycroft.util.log import getLogger
-from mycroft.skills.common_iot_skill import BusKeys, IoTRequest, Thing, Action
+from mycroft.skills.common_iot_skill import _BusKeys, IoTRequest, Thing, Action
 from uuid import uuid4
 
 __author__ = 'ChristopherRogers1991'
@@ -50,7 +50,8 @@ class SkillIotControl(MycroftSkill):
         self._current_requests = dict()
 
     def initialize(self):
-        self.add_event(BusKeys.RESPONSE, self._handle_response)
+        self.add_event(_BusKeys.RESPONSE, self._handle_response)
+        self.add_event(_BusKeys.REGISTER, self._register_words)
 
     def _handle_response(self, message: Message):
         LOGGER.info("Message data was: " +  str(message.data))
@@ -61,6 +62,13 @@ class SkillIotControl(MycroftSkill):
             raise Exception("Request is not being tracked."
                             " This skill may have responded too late.")
         self._current_requests[id].append(message)
+
+    def _register_words(self, message: Message):
+        type = message.data["type"]
+        words = message.data["words"]
+
+        for word in words:
+            self.register_vocabulary(word, type)
 
     def _run(self, message: Message):
         id = message.data.get(IOT_REQUEST_ID)
@@ -76,7 +84,7 @@ class SkillIotControl(MycroftSkill):
         del(self._current_requests[id])
         winner = self._pick_winner(candidates)
         LOGGER.info("Winner data is: " + str(winner.data))
-        self.bus.emit(Message(BusKeys.RUN + winner.data["skill_id"], winner.data))
+        self.bus.emit(Message(_BusKeys.RUN + winner.data["skill_id"], winner.data))
 
     def _pick_winner(self, candidates: [Message]):
         # TODO - make this actually pick a winner
@@ -89,6 +97,9 @@ class SkillIotControl(MycroftSkill):
                 return action
         raise Exception("No action found!")
 
+    # TODO - generic requests may need to pick winners differently than
+    #  other requests. May have to always ask which skill, if more than
+    #  one can handle.
     @intent_handler(IntentBuilder('PowerEntity')
                     .require('ENTITY')
                     .one_of('ON', 'OFF', 'TOGGLE'))
@@ -102,12 +113,12 @@ class SkillIotControl(MycroftSkill):
 
         request = IoTRequest(
             action=action,
-            entity=data.get('Entity'),
+            entity=data.get('ENTITY'),
         )
 
         data[IoTRequest.__name__] = repr(request)
 
-        self.bus.emit(Message(BusKeys.TRIGGER, data))
+        self.bus.emit(Message(_BusKeys.TRIGGER, data))
 
     # TODO - Entity is not necessarily light related,
     #  so this has to be more generic. We'll have to
@@ -130,13 +141,13 @@ class SkillIotControl(MycroftSkill):
         request = IoTRequest(
             action=action,
             thing=Thing.LIGHT,
-            entity=data.get('Entity'),
+            entity=data.get('ENTITY'),
             scene=None
         )
 
         data[IoTRequest.__name__] = repr(request)
 
-        self.bus.emit(Message(BusKeys.TRIGGER, data))
+        self.bus.emit(Message(_BusKeys.TRIGGER, data))
 
     # @intent_handler(IntentBuilder("LightsBrightness")
     #                 .one_of("INCREASE", "DECREASE")
@@ -157,7 +168,7 @@ class SkillIotControl(MycroftSkill):
     #
     #     data[IoTRequest.__name__] = repr(request)
     #
-    #     self.bus.emit(Message(BusKeys.TRIGGER, data))
+    #     self.bus.emit(Message(_BusKeys.TRIGGER, data))
 
 
 def create_skill():
