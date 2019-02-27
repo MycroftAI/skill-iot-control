@@ -52,6 +52,7 @@ class SkillIotControl(MycroftSkill):
     def initialize(self):
         self.add_event(_BusKeys.RESPONSE, self._handle_response)
         self.add_event(_BusKeys.REGISTER, self._register_words)
+        self.bus.emit(Message(_BusKeys.CALL_FOR_REGISTRATION, {}))
 
     def _handle_response(self, message: Message):
         LOGGER.info("Message data was: " +  str(message.data))
@@ -64,6 +65,11 @@ class SkillIotControl(MycroftSkill):
         self._current_requests[id].append(message)
 
     def _register_words(self, message: Message):
+        # TODO these will need to be normalized, and we will
+        #  have to keep a map of the normalized values to the
+        #  original. This is because user provided values may
+        #  be things like "Master-Bedroom" which when spoken
+        #  will translate to "master bedroom."
         type = message.data["type"]
         words = message.data["words"]
 
@@ -173,4 +179,3 @@ class SkillIotControl(MycroftSkill):
 
 def create_skill():
     return SkillIotControl()
-
