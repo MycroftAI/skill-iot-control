@@ -122,7 +122,7 @@ class SkillIotControl(MycroftSkill):
             entity=data.get('ENTITY'),
         )
 
-        data[IoTRequest.__name__] = repr(request)
+        data[IoTRequest.__name__] = request.to_dict()
 
         self.bus.emit(Message(_BusKeys.TRIGGER, data))
 
@@ -151,7 +151,7 @@ class SkillIotControl(MycroftSkill):
             scene=None
         )
 
-        data[IoTRequest.__name__] = repr(request)
+        data[IoTRequest.__name__] = request.to_dict()
 
         self.bus.emit(Message(_BusKeys.TRIGGER, data))
 
@@ -172,7 +172,7 @@ class SkillIotControl(MycroftSkill):
     #         scene=None
     #     )
     #
-    #     data[IoTRequest.__name__] = repr(request)
+    #     data[IoTRequest.__name__] = request.to_dict()
     #
     #     self.bus.emit(Message(_BusKeys.TRIGGER, data))
 
