@@ -16,13 +16,9 @@
 from adapt.intent import IntentBuilder
 from mycroft import MycroftSkill, intent_handler
 from mycroft.messagebus.message import Message
-from mycroft.util.log import getLogger
+from mycroft.util.log import LOG
 from mycroft.skills.common_iot_skill import _BusKeys, IoTRequest, Thing, Action
 from uuid import uuid4
-
-__author__ = 'ChristopherRogers1991'
-
-LOG = getLogger(__name__)
 
 IOT_REQUEST_ID = "iot_request_id"
 
@@ -47,7 +43,7 @@ def _handle_iot_request(handler_function):
     return tracking_intent_handler
 
 
-class SkillIotControl(MycroftSkill):
+class SkillIoTControl(MycroftSkill):
 
     def __init__(self):
         MycroftSkill.__init__(self)
@@ -170,4 +166,4 @@ class SkillIotControl(MycroftSkill):
 
 
 def create_skill():
-    return SkillIotControl()
+    return SkillIoTControl()
