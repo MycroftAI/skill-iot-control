@@ -22,9 +22,13 @@ from uuid import uuid4
 
 __author__ = 'ChristopherRogers1991'
 
-LOGGER = getLogger(__name__)
+LOG = getLogger(__name__)
 
 IOT_REQUEST_ID = "iot_request_id"
+
+_ACTIONS = [action.name for action in Action]
+_THINGS = [thing.name for thing in Thing]
+
 
 # TODO Exceptions should be custom types
 # TODO more intent handlers
@@ -55,7 +59,7 @@ class SkillIotControl(MycroftSkill):
         self.bus.emit(Message(_BusKeys.CALL_FOR_REGISTRATION, {}))
 
     def _handle_response(self, message: Message):
-        LOGGER.info("Message data was: " +  str(message.data))
+        LOG.info("Message data was: " + str(message.data))
         id = message.data.get(IOT_REQUEST_ID)
         if not id:
             raise Exception("No id found!")
@@ -89,7 +93,7 @@ class SkillIotControl(MycroftSkill):
 
         del(self._current_requests[id])
         winner = self._pick_winner(candidates)
-        LOGGER.info("Winner data is: " + str(winner.data))
+        LOG.info("Winner data is: " + str(winner.data))
         self.bus.emit(Message(_BusKeys.RUN + winner.data["skill_id"], winner.data))
 
     def _pick_winner(self, candidates: [Message]):
@@ -103,78 +107,66 @@ class SkillIotControl(MycroftSkill):
                 return action
         raise Exception("No action found!")
 
+    def _get_thing_from_data(self, data: dict):
+        for thing in Thing:
+            if thing.name in data:
+                return thing
+        return None
+
     # TODO - generic requests may need to pick winners differently than
     #  other requests. May have to always ask which skill, if more than
     #  one can handle.
-    @intent_handler(IntentBuilder('PowerEntity')
+    @intent_handler(IntentBuilder('IoTRequestWithEntityOrAction')
+                    .one_of('ENTITY', *_THINGS)
+                    .one_of(*_ACTIONS)
+                    .optionally('SCENE'))
+    @_handle_iot_request
+    def handle_iot_request_with_entity_or_thing(self, message: Message):
+        self._handle_iot_request(message)
+
+    @intent_handler(IntentBuilder('IoTRequestWithEntityAndAction')
                     .require('ENTITY')
-                    .one_of('ON', 'OFF', 'TOGGLE'))
+                    .one_of(*_THINGS)
+                    .one_of(*_ACTIONS)
+                    .optionally('SCENE'))
     @_handle_iot_request
-    def handle_entity_power(self, message: Message):
-        self.speak("IoT power request")
-        data = message.data
-        if 'TOGGLE' in data and ('ON' in data or 'OFF' in data):
-            del(data['TOGGLE'])
+    def handle_iot_request_with_entity_and_thing(self, message: Message):
+        self._handle_iot_request(message)
+
+    def _handle_iot_request(self, message: Message):
+        self.speak("IoT request")
+        data = self._clean_power_request(message.data)
         action = self._get_action_from_data(data)
+        thing = self._get_thing_from_data(data)
 
         request = IoTRequest(
             action=action,
+            thing=thing,
             entity=data.get('ENTITY'),
+            scene=data.get('SCENE')
         )
 
         data[IoTRequest.__name__] = request.to_dict()
 
         self.bus.emit(Message(_BusKeys.TRIGGER, data))
 
-    # TODO - Entity is not necessarily light related,
-    #  so this has to be more generic. We'll have to
-    #  look for a THING after catching the intent
-    #  (see above). May be best to make nearly duplicate
-    #  handlers to cover generic and THING specific
-    #  (as currently written).
-    @intent_handler(IntentBuilder('PowerLights')
-                    .require('LIGHTS')
-                    .one_of('ON', 'OFF', 'TOGGLE')
-                    .optionally('ENTITY'))
-    @_handle_iot_request
-    def handle_lights_power(self, message: Message):
-        self.speak("Lights power request")
-        data = message.data
+    def _clean_power_request(self, data: dict):
+        """
+        Clean requests that include a toggle word and a definitive value.
+
+        Requests like "toggle the lights off" should only send "off"
+        through as the action.
+
+        Args:
+            data: dict
+
+        Returns:
+            dict
+
+        """
         if 'TOGGLE' in data and ('ON' in data or 'OFF' in data):
             del(data['TOGGLE'])
-        action = self._get_action_from_data(data)
-
-        request = IoTRequest(
-            action=action,
-            thing=Thing.LIGHT,
-            entity=data.get('ENTITY'),
-            scene=None
-        )
-
-        data[IoTRequest.__name__] = request.to_dict()
-
-        self.bus.emit(Message(_BusKeys.TRIGGER, data))
-
-    # @intent_handler(IntentBuilder("LightsBrightness")
-    #                 .one_of("INCREASE", "DECREASE")
-    #                 .one_of("LIGHTS", "ENTITY")
-    #                 .optionally("BRIGHTNESS"))
-    # @_handle_iot_request
-    # def handle_lights_on(self, message: Message):
-    #     self.speak("Lights power request")
-    #     data = message.data
-    #     action = self._get_action_from_data(data)
-    #
-    #     request = IoTRequest(
-    #         action=action,
-    #         thing=Thing.LIGHT,
-    #         entity=data.get('Entity'),
-    #         scene=None
-    #     )
-    #
-    #     data[IoTRequest.__name__] = request.to_dict()
-    #
-    #     self.bus.emit(Message(_BusKeys.TRIGGER, data))
+        return data
 
 
 def create_skill():
