@@ -143,6 +143,9 @@ class SkillIoTControl(MycroftSkill):
             self._trigger_iot_request(data, action, thing,
                                       original_entity, original_scene)
 
+        self._set_context(thing, entity, data)
+
+
     def _trigger_iot_request(self, data: dict,
                              action: Action,
                              thing: Thing=None,
@@ -158,6 +161,13 @@ class SkillIoTControl(MycroftSkill):
         data[IoTRequest.__name__] = request.to_dict()
 
         self.bus.emit(Message(_BusKeys.TRIGGER, data))
+
+    def _set_context(self, thing: Thing, entity: str, data: dict):
+        if thing:
+            self.set_context(thing.name, data[thing.name])
+        elif entity:
+            self.set_context('ENTITY', entity)
+
 
 
     def _clean_power_request(self, data: dict) -> dict:
