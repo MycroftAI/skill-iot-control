@@ -16,8 +16,9 @@
 from adapt.intent import IntentBuilder
 from mycroft import MycroftSkill, intent_handler
 from mycroft.messagebus.message import Message
-from mycroft.util.log import getLogger
 from mycroft.skills.common_iot_skill import _BusKeys, IoTRequest, Thing, Action
+from mycroft.util.log import getLogger
+from typing import List
 from uuid import uuid4
 
 __author__ = 'ChristopherRogers1991'
@@ -31,8 +32,6 @@ _THINGS = [thing.name for thing in Thing]
 
 
 # TODO Exceptions should be custom types
-# TODO more intent handlers
-
 
 def _handle_iot_request(handler_function):
     def tracking_intent_handler(self, message):
@@ -52,6 +51,7 @@ class SkillIotControl(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
         self._current_requests = dict()
+        self._normalized_to_orginal_word_map = dict()
 
     def initialize(self):
         self.add_event(_BusKeys.RESPONSE, self._handle_response)
@@ -69,16 +69,15 @@ class SkillIotControl(MycroftSkill):
         self._current_requests[id].append(message)
 
     def _register_words(self, message: Message):
-        # TODO these will need to be normalized, and we will
-        #  have to keep a map of the normalized values to the
-        #  original. This is because user provided values may
-        #  be things like "Master-Bedroom" which when spoken
-        #  will translate to "master bedroom."
         type = message.data["type"]
         words = message.data["words"]
 
         for word in words:
             self.register_vocabulary(word, type)
+            normalized = _normalize_custom_word(word)
+            if normalized != word:
+                self._normalized_to_orginal_word_map[normalized] = word
+                self.register_vocabulary(normalized, type)
 
     def _run(self, message: Message):
         id = message.data.get(IOT_REQUEST_ID)
@@ -96,26 +95,23 @@ class SkillIotControl(MycroftSkill):
         LOG.info("Winner data is: " + str(winner.data))
         self.bus.emit(Message(_BusKeys.RUN + winner.data["skill_id"], winner.data))
 
-    def _pick_winner(self, candidates: [Message]):
+    def _pick_winner(self, candidates: List[Message]):
         # TODO - make this actually pick a winner
         winner = candidates[0]
         return winner
 
-    def _get_action_from_data(self, data: dict):
+    def _get_action_from_data(self, data: dict) -> Action:
         for action in Action:
             if action.name in data:
                 return action
         raise Exception("No action found!")
 
-    def _get_thing_from_data(self, data: dict):
+    def _get_thing_from_data(self, data: dict) -> [Thing, None]:
         for thing in Thing:
             if thing.name in data:
                 return thing
         return None
 
-    # TODO - generic requests may need to pick winners differently than
-    #  other requests. May have to always ask which skill, if more than
-    #  one can handle.
     @intent_handler(IntentBuilder('IoTRequestWithEntityOrAction')
                     .one_of('ENTITY', *_THINGS)
                     .one_of(*_ACTIONS)
@@ -138,19 +134,37 @@ class SkillIotControl(MycroftSkill):
         data = self._clean_power_request(message.data)
         action = self._get_action_from_data(data)
         thing = self._get_thing_from_data(data)
+        entity = data.get('ENTITY')
+        scene = data.get('SCENE')
+        original_entity = (self._normalized_to_orginal_word_map.get(entity)
+                           if entity else None)
+        original_scene = (self._normalized_to_orginal_word_map.get(scene)
+                          if scene else None)
 
+        self._trigger_iot_request(data, action, thing, entity, scene)
+
+        if original_entity or original_scene:
+            self._trigger_iot_request(data, action, thing,
+                                      original_entity, original_scene)
+
+    def _trigger_iot_request(self, data: dict,
+                             action: Action,
+                             thing: Thing=None,
+                             entity: str=None,
+                             scene: str=None):
         request = IoTRequest(
             action=action,
             thing=thing,
-            entity=data.get('ENTITY'),
-            scene=data.get('SCENE')
+            entity=entity,
+            scene=scene
         )
 
         data[IoTRequest.__name__] = request.to_dict()
 
         self.bus.emit(Message(_BusKeys.TRIGGER, data))
 
-    def _clean_power_request(self, data: dict):
+
+    def _clean_power_request(self, data: dict) -> dict:
         """
         Clean requests that include a toggle word and a definitive value.
 
@@ -167,6 +181,16 @@ class SkillIotControl(MycroftSkill):
         if 'TOGGLE' in data and ('ON' in data or 'OFF' in data):
             del(data['TOGGLE'])
         return data
+
+
+def _normalize_custom_word(word: str, to_space: str = '_-') -> str:
+    word = word.lower()
+    letters = list(word)
+    for index, letter in enumerate(letters):
+        if letter in to_space:
+            letters[index] = ' '
+    return ''.join(letters)
+
 
 
 def create_skill():
