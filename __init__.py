@@ -17,7 +17,12 @@ from adapt.intent import IntentBuilder
 from mycroft import MycroftSkill, intent_handler
 from mycroft.messagebus.message import Message
 from mycroft.util.log import LOG
-from mycroft.skills.common_iot_skill import _BusKeys, IoTRequest, Thing, Action
+from mycroft.skills.common_iot_skill import \
+    _BusKeys, \
+    IoTRequest, \
+    Thing, \
+    Action, \
+    Attribute
 from typing import List
 from uuid import uuid4
 
@@ -25,6 +30,7 @@ IOT_REQUEST_ID = "iot_request_id"
 
 _ACTIONS = [action.name for action in Action]
 _THINGS = [thing.name for thing in Thing]
+_ATTRIBUTES = [attribute.name for attribute in Attribute]
 
 
 # TODO Exceptions should be custom types
@@ -96,16 +102,10 @@ class SkillIoTControl(MycroftSkill):
         winner = candidates[0]
         return winner
 
-    def _get_action_from_data(self, data: dict) -> Action:
-        for action in Action:
-            if action.name in data:
-                return action
-        raise Exception("No action found!")
-
-    def _get_thing_from_data(self, data: dict) -> [Thing, None]:
-        for thing in Thing:
-            if thing.name in data:
-                return thing
+    def _get_enum_from_data(self, enum_class, data: dict):
+        for e in enum_class:
+            if e.name in data:
+                return e
         return None
 
     @intent_handler(IntentBuilder('IoTRequestWithEntityOrAction')
@@ -125,11 +125,33 @@ class SkillIoTControl(MycroftSkill):
     def handle_iot_request_with_entity_and_thing(self, message: Message):
         self._handle_iot_request(message)
 
+    @intent_handler(IntentBuilder('IoTRequestWithEntityOrActionAndProperty')
+                    .one_of('ENTITY', *_THINGS)
+                    .one_of(*_ACTIONS)
+                    .one_of(*_ATTRIBUTES)
+                    .optionally('SCENE'))
+    @_handle_iot_request
+    def handle_iot_request_with_entity_or_thing_and_property(self,
+                                                             message: Message):
+        self._handle_iot_request(message)
+
+    @intent_handler(IntentBuilder('IoTRequestWithEntityAndActionAndProperty')
+                    .require('ENTITY')
+                    .one_of(*_THINGS)
+                    .one_of(*_ACTIONS)
+                    .one_of(*_ATTRIBUTES)
+                    .optionally('SCENE'))
+    @_handle_iot_request
+    def handle_iot_request_with_entity_and_thing_and_property(self,
+                                                              message: Message):
+        self._handle_iot_request(message)
+
     def _handle_iot_request(self, message: Message):
         self.speak("IoT request")
         data = self._clean_power_request(message.data)
-        action = self._get_action_from_data(data)
-        thing = self._get_thing_from_data(data)
+        action = self._get_enum_from_data(Action, data)
+        thing = self._get_enum_from_data(Thing, data)
+        attribute = self._get_enum_from_data(Attribute, data)
         entity = data.get('ENTITY')
         scene = data.get('SCENE')
         original_entity = (self._normalized_to_orginal_word_map.get(entity)
@@ -137,10 +159,10 @@ class SkillIoTControl(MycroftSkill):
         original_scene = (self._normalized_to_orginal_word_map.get(scene)
                           if scene else None)
 
-        self._trigger_iot_request(data, action, thing, entity, scene)
+        self._trigger_iot_request(data, action, thing, attribute, entity, scene)
 
         if original_entity or original_scene:
-            self._trigger_iot_request(data, action, thing,
+            self._trigger_iot_request(data, action, thing, attribute,
                                       original_entity, original_scene)
 
         self._set_context(thing, entity, data)
@@ -149,11 +171,13 @@ class SkillIoTControl(MycroftSkill):
     def _trigger_iot_request(self, data: dict,
                              action: Action,
                              thing: Thing=None,
+                             attribute: Attribute=None,
                              entity: str=None,
                              scene: str=None):
         request = IoTRequest(
             action=action,
             thing=thing,
+            attribute=attribute,
             entity=entity,
             scene=scene
         )
