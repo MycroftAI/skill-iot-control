@@ -14,7 +14,7 @@
 #
 
 from adapt.intent import IntentBuilder
-from mycroft import MycroftSkill, intent_handler
+from mycroft import MycroftSkill
 from mycroft.messagebus.message import Message
 from mycroft.util.log import LOG
 from mycroft.skills.common_iot_skill import \
@@ -60,8 +60,42 @@ class SkillIoTControl(MycroftSkill):
         self.add_event(_BusKeys.REGISTER, self._register_words)
         self.bus.emit(Message(_BusKeys.CALL_FOR_REGISTRATION, {}))
 
+        intent = (IntentBuilder('IoTRequestWithEntityOrAction')
+                    .one_of('ENTITY', *_THINGS)
+                    .one_of(*_ACTIONS)
+                    .optionally('SCENE')
+                    .build())
+        self.register_intent(intent, self._handle_iot_request)
+
+        intent = (IntentBuilder('IoTRequestWithEntityAndAction')
+                    .require('ENTITY')
+                    .one_of(*_THINGS)
+                    .one_of(*_ACTIONS)
+                    .optionally('SCENE')
+                    .build())
+        self.register_intent(intent, self._handle_iot_request)
+
+        intent = (IntentBuilder('IoTRequestWithEntityOrActionAndProperty')
+                    .one_of('ENTITY', *_THINGS)
+                    .one_of(*_ACTIONS)
+                    .one_of(*_ATTRIBUTES)
+                    .optionally('SCENE')
+                    .build())
+        self.register_intent(intent, self._handle_iot_request)
+
+        intent = (IntentBuilder('IoTRequestWithEntityAndActionAndProperty')
+                    .require('ENTITY')
+                    .one_of(*_THINGS)
+                    .one_of(*_ACTIONS)
+                    .one_of(*_ATTRIBUTES)
+                    .optionally('SCENE')
+                    .build())
+        self.register_intent(intent, self._handle_iot_request)
+
+    def stop(self):
+        pass
+
     def _handle_response(self, message: Message):
-        LOG.info("Message data was: " + str(message.data))
         id = message.data.get(IOT_REQUEST_ID)
         if not id:
             raise Exception("No id found!")
@@ -93,14 +127,14 @@ class SkillIoTControl(MycroftSkill):
             return
 
         del(self._current_requests[id])
-        winner = self._pick_winner(candidates)
-        LOG.info("Winner data is: " + str(winner.data))
-        self.bus.emit(Message(_BusKeys.RUN + winner.data["skill_id"], winner.data))
+        winners = self._pick_winners(candidates)
+        for winner in winners:
+            self.bus.emit(Message(
+                _BusKeys.RUN + winner.data["skill_id"], winner.data))
 
-    def _pick_winner(self, candidates: List[Message]):
-        # TODO - make this actually pick a winner
-        winner = candidates[0]
-        return winner
+    def _pick_winners(self, candidates: List[Message]):
+        # TODO - make this actually pick winners
+        return candidates
 
     def _get_enum_from_data(self, enum_class, data: dict):
         for e in enum_class:
@@ -108,46 +142,9 @@ class SkillIoTControl(MycroftSkill):
                 return e
         return None
 
-    @intent_handler(IntentBuilder('IoTRequestWithEntityOrAction')
-                    .one_of('ENTITY', *_THINGS)
-                    .one_of(*_ACTIONS)
-                    .optionally('SCENE'))
     @_handle_iot_request
-    def handle_iot_request_with_entity_or_thing(self, message: Message):
-        self._handle_iot_request(message)
-
-    @intent_handler(IntentBuilder('IoTRequestWithEntityAndAction')
-                    .require('ENTITY')
-                    .one_of(*_THINGS)
-                    .one_of(*_ACTIONS)
-                    .optionally('SCENE'))
-    @_handle_iot_request
-    def handle_iot_request_with_entity_and_thing(self, message: Message):
-        self._handle_iot_request(message)
-
-    @intent_handler(IntentBuilder('IoTRequestWithEntityOrActionAndProperty')
-                    .one_of('ENTITY', *_THINGS)
-                    .one_of(*_ACTIONS)
-                    .one_of(*_ATTRIBUTES)
-                    .optionally('SCENE'))
-    @_handle_iot_request
-    def handle_iot_request_with_entity_or_thing_and_property(self,
-                                                             message: Message):
-        self._handle_iot_request(message)
-
-    @intent_handler(IntentBuilder('IoTRequestWithEntityAndActionAndProperty')
-                    .require('ENTITY')
-                    .one_of(*_THINGS)
-                    .one_of(*_ACTIONS)
-                    .one_of(*_ATTRIBUTES)
-                    .optionally('SCENE'))
-    @_handle_iot_request
-    def handle_iot_request_with_entity_and_thing_and_property(self,
-                                                              message: Message):
-        self._handle_iot_request(message)
-
     def _handle_iot_request(self, message: Message):
-        self.speak("IoT request")
+        # self.speak("IoT request")
         data = self._clean_power_request(message.data)
         action = self._get_enum_from_data(Action, data)
         thing = self._get_enum_from_data(Thing, data)
@@ -166,7 +163,6 @@ class SkillIoTControl(MycroftSkill):
                                       original_entity, original_scene)
 
         self._set_context(thing, entity, data)
-
 
     def _trigger_iot_request(self, data: dict,
                              action: Action,
@@ -189,10 +185,8 @@ class SkillIoTControl(MycroftSkill):
     def _set_context(self, thing: Thing, entity: str, data: dict):
         if thing:
             self.set_context(thing.name, data[thing.name])
-        elif entity:
+        if entity:
             self.set_context('ENTITY', entity)
-
-
 
     def _clean_power_request(self, data: dict) -> dict:
         """
