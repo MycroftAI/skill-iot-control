@@ -144,7 +144,6 @@ class SkillIoTControl(MycroftSkill):
 
     @_handle_iot_request
     def _handle_iot_request(self, message: Message):
-        # self.speak("IoT request")
         data = self._clean_power_request(message.data)
         action = self._get_enum_from_data(Action, data)
         thing = self._get_enum_from_data(Thing, data)
@@ -177,6 +176,8 @@ class SkillIoTControl(MycroftSkill):
             entity=entity,
             scene=scene
         )
+
+        LOG.info("Looking for handlers for: {request}".format(request=request))
 
         data[IoTRequest.__name__] = request.to_dict()
 
