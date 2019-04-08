@@ -53,7 +53,7 @@ class SkillIoTControl(MycroftSkill):
     def __init__(self):
         MycroftSkill.__init__(self)
         self._current_requests = dict()
-        self._normalized_to_orginal_word_map = dict()
+        self._normalized_to_orignal_word_map = dict()
 
     def initialize(self):
         self.add_event(_BusKeys.RESPONSE, self._handle_response)
@@ -112,7 +112,7 @@ class SkillIoTControl(MycroftSkill):
             self.register_vocabulary(word, type)
             normalized = _normalize_custom_word(word)
             if normalized != word:
-                self._normalized_to_orginal_word_map[normalized] = word
+                self._normalized_to_orignal_word_map[normalized] = word
                 self.register_vocabulary(normalized, type)
 
     def _run(self, message: Message):
@@ -150,9 +150,9 @@ class SkillIoTControl(MycroftSkill):
         attribute = self._get_enum_from_data(Attribute, data)
         entity = data.get('ENTITY')
         scene = data.get('SCENE')
-        original_entity = (self._normalized_to_orginal_word_map.get(entity)
+        original_entity = (self._normalized_to_orignal_word_map.get(entity)
                            if entity else None)
-        original_scene = (self._normalized_to_orginal_word_map.get(scene)
+        original_scene = (self._normalized_to_orignal_word_map.get(scene)
                           if scene else None)
 
         self._trigger_iot_request(data, action, thing, attribute, entity, scene)
