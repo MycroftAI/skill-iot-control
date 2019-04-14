@@ -131,6 +131,7 @@ class SkillIoTControl(MycroftSkill):
         for winner in winners:
             self.bus.emit(Message(
                 _BusKeys.RUN + winner.data["skill_id"], winner.data))
+        self.acknowledge()
 
     def _pick_winners(self, candidates: List[Message]):
         # TODO - make this actually pick winners
