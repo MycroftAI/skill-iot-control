@@ -168,8 +168,6 @@ class SkillIoTControl(MycroftSkill):
             self._trigger_iot_request(data, action, thing, attribute,
                                       original_entity, original_scene)
 
-        self._set_context(thing, entity, data)
-
     def _trigger_iot_request(self, data: dict,
                              action: Action,
                              thing: Thing=None,
