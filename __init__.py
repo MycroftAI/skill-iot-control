@@ -92,6 +92,12 @@ class SkillIoTControl(MycroftSkill):
                     .build())
         self.register_intent(intent, self._handle_iot_request)
 
+        intent = (IntentBuilder('IoTRequestScene')
+                  .require('SCENE')
+                  .one_of(*_ACTIONS)
+                  .build())
+        self.register_intent(intent, self._handle_iot_request)
+
     def stop(self):
         pass
 
