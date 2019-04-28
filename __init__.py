@@ -166,6 +166,7 @@ class SkillIoTControl(MycroftSkill):
 
         if action == Action.SET and 'TO' in data:
             value = extract_number(message.data['utterance'])
+            value = value if value else None  # extract_number may return False
 
         original_entity = (self._normalized_to_orignal_word_map.get(entity)
                            if entity else None)
