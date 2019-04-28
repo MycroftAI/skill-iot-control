@@ -17,6 +17,7 @@ from adapt.intent import IntentBuilder
 from mycroft import MycroftSkill
 from mycroft.messagebus.message import Message
 from mycroft.util.log import LOG
+from mycroft.util.parse import extract_number
 from mycroft.skills.common_iot_skill import \
     _BusKeys, \
     IoTRequest, \
@@ -64,6 +65,7 @@ class SkillIoTControl(MycroftSkill):
                     .one_of('ENTITY', *_THINGS)
                     .one_of(*_ACTIONS)
                     .optionally('SCENE')
+                    .optionally('TO')
                     .build())
         self.register_intent(intent, self._handle_iot_request)
 
@@ -72,6 +74,7 @@ class SkillIoTControl(MycroftSkill):
                     .one_of(*_THINGS)
                     .one_of(*_ACTIONS)
                     .optionally('SCENE')
+                    .optionally('TO')
                     .build())
         self.register_intent(intent, self._handle_iot_request)
 
@@ -80,6 +83,7 @@ class SkillIoTControl(MycroftSkill):
                     .one_of(*_ACTIONS)
                     .one_of(*_ATTRIBUTES)
                     .optionally('SCENE')
+                    .optionally('TO')
                     .build())
         self.register_intent(intent, self._handle_iot_request)
 
@@ -89,6 +93,7 @@ class SkillIoTControl(MycroftSkill):
                     .one_of(*_ACTIONS)
                     .one_of(*_ATTRIBUTES)
                     .optionally('SCENE')
+                    .optionally('TO')
                     .build())
         self.register_intent(intent, self._handle_iot_request)
 
@@ -157,29 +162,45 @@ class SkillIoTControl(MycroftSkill):
         attribute = self._get_enum_from_data(Attribute, data)
         entity = data.get('ENTITY')
         scene = data.get('SCENE')
+        value = None
+
+        if action == Action.SET and 'TO' in data:
+            value = extract_number(message.data['utterance'])
+
         original_entity = (self._normalized_to_orignal_word_map.get(entity)
                            if entity else None)
         original_scene = (self._normalized_to_orignal_word_map.get(scene)
                           if scene else None)
 
-        self._trigger_iot_request(data, action, thing, attribute, entity, scene)
+        self._trigger_iot_request(
+            data,
+            action,
+            thing,
+            attribute,
+            entity,
+            scene,
+            value
+        )
 
         if original_entity or original_scene:
             self._trigger_iot_request(data, action, thing, attribute,
-                                      original_entity, original_scene)
+                                      original_entity or entity,
+                                      original_scene or scene)
 
     def _trigger_iot_request(self, data: dict,
                              action: Action,
                              thing: Thing=None,
                              attribute: Attribute=None,
                              entity: str=None,
-                             scene: str=None):
+                             scene: str=None,
+                             value: int=None):
         request = IoTRequest(
             action=action,
             thing=thing,
             attribute=attribute,
             entity=entity,
-            scene=scene
+            scene=scene,
+            value=value
         )
 
         LOG.info("Looking for handlers for: {request}".format(request=request))
