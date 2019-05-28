@@ -23,11 +23,11 @@ from mycroft.skills.common_iot_skill import \
     IoTRequest, \
     Thing, \
     Action, \
-    Attribute
+    Attribute, \
+    IOT_REQUEST_ID
 from typing import List
 from uuid import uuid4
 
-IOT_REQUEST_ID = "iot_request_id"
 
 _ACTIONS = [action.name for action in Action]
 _THINGS = [thing.name for thing in Thing]
@@ -56,9 +56,22 @@ class SkillIoTControl(MycroftSkill):
         self._current_requests = dict()
         self._normalized_to_orignal_word_map = dict()
 
+    def _handle_speak(self, message: Message):
+        iot_request_id = message.data.get(IOT_REQUEST_ID)
+        skill_id = message.data.get("skill_id")
+
+        LOG.info("Speaking for {skill_id}, request id: {iot_request_id}"
+                 .format(skill_id=skill_id, iot_request_id=iot_request_id))
+
+        speech = message.data.get("speak")
+        args = message.data.get("speak_args")
+        kwargs = message.data.get("speak_kwargs")
+        self.speak(speech, *args, **kwargs)
+
     def initialize(self):
         self.add_event(_BusKeys.RESPONSE, self._handle_response)
         self.add_event(_BusKeys.REGISTER, self._register_words)
+        self.add_event(_BusKeys.SPEAK, self._handle_speak)
         self.bus.emit(Message(_BusKeys.CALL_FOR_REGISTRATION, {}))
 
         intent = (IntentBuilder('IoTRequestWithEntityOrAction')
