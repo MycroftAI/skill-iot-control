@@ -24,14 +24,17 @@ from mycroft.skills.common_iot_skill import \
     Thing, \
     Action, \
     Attribute, \
+    State, \
     IOT_REQUEST_ID
 from typing import List
 from uuid import uuid4
 
 
-_ACTIONS = [action.name for action in Action]
+_QUERY_ACTIONS = [Action.BINARY_QUERY.name, Action.INFORMATION_QUERY.name]
+_NON_QUERY_ACTIONS = [action.name for action in Action if action.name not in _QUERY_ACTIONS]
 _THINGS = [thing.name for thing in Thing]
 _ATTRIBUTES = [attribute.name for attribute in Attribute]
+_STATES = [state.name for state in State]
 
 
 # TODO Exceptions should be custom types
@@ -76,7 +79,7 @@ class SkillIoTControl(MycroftSkill):
 
         intent = (IntentBuilder('IoTRequestWithEntityOrAction')
                     .one_of('ENTITY', *_THINGS)
-                    .one_of(*_ACTIONS)
+                    .one_of(*_NON_QUERY_ACTIONS)
                     .optionally('SCENE')
                     .optionally('TO')
                     .build())
@@ -85,7 +88,7 @@ class SkillIoTControl(MycroftSkill):
         intent = (IntentBuilder('IoTRequestWithEntityAndAction')
                     .require('ENTITY')
                     .one_of(*_THINGS)
-                    .one_of(*_ACTIONS)
+                    .one_of(*_NON_QUERY_ACTIONS)
                     .optionally('SCENE')
                     .optionally('TO')
                     .build())
@@ -93,7 +96,7 @@ class SkillIoTControl(MycroftSkill):
 
         intent = (IntentBuilder('IoTRequestWithEntityOrActionAndProperty')
                     .one_of('ENTITY', *_THINGS)
-                    .one_of(*_ACTIONS)
+                    .one_of(*_NON_QUERY_ACTIONS)
                     .one_of(*_ATTRIBUTES)
                     .optionally('SCENE')
                     .optionally('TO')
@@ -103,7 +106,7 @@ class SkillIoTControl(MycroftSkill):
         intent = (IntentBuilder('IoTRequestWithEntityAndActionAndProperty')
                     .require('ENTITY')
                     .one_of(*_THINGS)
-                    .one_of(*_ACTIONS)
+                    .one_of(*_NON_QUERY_ACTIONS)
                     .one_of(*_ATTRIBUTES)
                     .optionally('SCENE')
                     .optionally('TO')
@@ -112,8 +115,15 @@ class SkillIoTControl(MycroftSkill):
 
         intent = (IntentBuilder('IoTRequestScene')
                   .require('SCENE')
-                  .one_of(*_ACTIONS)
+                  .one_of(*_NON_QUERY_ACTIONS)
                   .build())
+        self.register_intent(intent, self._handle_iot_request)
+
+        intent = (IntentBuilder('IoTRequestStateQuery')
+                    .one_of(*_QUERY_ACTIONS)
+                    .one_of(*_THINGS, 'ENTITY')
+                    .one_of(*_STATES, *_ATTRIBUTES)
+                    .build())
         self.register_intent(intent, self._handle_iot_request)
 
     def stop(self):
@@ -173,6 +183,7 @@ class SkillIoTControl(MycroftSkill):
         action = self._get_enum_from_data(Action, data)
         thing = self._get_enum_from_data(Thing, data)
         attribute = self._get_enum_from_data(Attribute, data)
+        state = self._get_enum_from_data(State, data)
         entity = data.get('ENTITY')
         scene = data.get('SCENE')
         value = None
@@ -194,13 +205,15 @@ class SkillIoTControl(MycroftSkill):
             attribute,
             entity,
             scene,
-            value
+            value,
+            state
         )
 
         if original_entity or original_scene:
             self._trigger_iot_request(data, action, thing, attribute,
                                       original_entity or entity,
-                                      original_scene or scene)
+                                      original_scene or scene,
+                                      state)
 
     def _trigger_iot_request(self, data: dict,
                              action: Action,
@@ -208,14 +221,17 @@ class SkillIoTControl(MycroftSkill):
                              attribute: Attribute=None,
                              entity: str=None,
                              scene: str=None,
-                             value: int=None):
+                             value: int=None,
+                             state: State=None):
+        LOG.info('state is {}'.format(state))
         request = IoTRequest(
             action=action,
             thing=thing,
             attribute=attribute,
             entity=entity,
             scene=scene,
-            value=value
+            value=value,
+            state=state
         )
 
         LOG.info("Looking for handlers for: {request}".format(request=request))
