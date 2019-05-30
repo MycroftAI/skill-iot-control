@@ -13,6 +13,11 @@
 # limitations under the License.
 #
 
+# TODO Exceptions should be custom types
+
+from collections import defaultdict, namedtuple
+from enum import Enum
+
 from adapt.intent import IntentBuilder
 from mycroft import MycroftSkill
 from mycroft.messagebus.message import Message
@@ -26,7 +31,7 @@ from mycroft.skills.common_iot_skill import \
     Attribute, \
     State, \
     IOT_REQUEST_ID
-from typing import List
+from typing import List, Dict, DefaultDict
 from uuid import uuid4
 
 
@@ -37,14 +42,36 @@ _ATTRIBUTES = [attribute.name for attribute in Attribute]
 _STATES = [state.name for state in State]
 
 
-# TODO Exceptions should be custom types
+class IoTRequestStatus(Enum):
+    POLLING = 0
+    RUNNING = 1
+
+
+SpeechReqest = namedtuple('SpeechRequest', ["utterance", "args", "kwargs"])
+
+
+class TrackedIoTRequest():
+
+    def __init__(
+            self,
+            id: str,
+            status: IoTRequestStatus = IoTRequestStatus.POLLING,
+    ):
+        self.id = id
+        self.status = status
+        self.candidates = []
+        self.speech_requests: DefaultDict[str, List[SpeechReqest]] = defaultdict(list)
 
 def _handle_iot_request(handler_function):
     def tracking_intent_handler(self, message):
         id = str(uuid4())
         message.data[IOT_REQUEST_ID] = id
-        self._current_requests[id] = []
+        self._current_requests[id] = TrackedIoTRequest(id)
         handler_function(self, message)
+        self.schedule_event(self._delete_request,
+                            10,  # TODO make this timeout based on the other timeouts
+                            data={IOT_REQUEST_ID: id},
+                            name="DeleteRequest")
         self.schedule_event(self._run,
                             1,  # TODO make this timeout a setting
                             data={IOT_REQUEST_ID: id},
@@ -56,20 +83,32 @@ class SkillIoTControl(MycroftSkill):
 
     def __init__(self):
         MycroftSkill.__init__(self)
-        self._current_requests = dict()
-        self._normalized_to_orignal_word_map = dict()
+        self._current_requests: Dict[str, TrackedIoTRequest] = dict()
+        self._normalized_to_orignal_word_map: Dict[str, str] = dict()
 
     def _handle_speak(self, message: Message):
         iot_request_id = message.data.get(IOT_REQUEST_ID)
+
         skill_id = message.data.get("skill_id")
 
-        LOG.info("Speaking for {skill_id}, request id: {iot_request_id}"
-                 .format(skill_id=skill_id, iot_request_id=iot_request_id))
-
-        speech = message.data.get("speak")
+        utterance = message.data.get("speak")
         args = message.data.get("speak_args")
         kwargs = message.data.get("speak_kwargs")
-        self.speak(speech, *args, **kwargs)
+
+        speech_request = SpeechReqest(utterance, args, kwargs)
+
+        if iot_request_id not in self._current_requests:
+            LOG.warning("Dropping speech request from {skill_id} for"
+                        " {iot_request_id} because we are not currently"
+                        " tracking that iot request. SpeechRequest was"
+                        " {speech_request}".format(
+                skill_id=skill_id,
+                iot_request_id=iot_request_id,
+                speech_request=speech_request
+            ))
+
+        self._current_requests[iot_request_id].speech_requests[skill_id].append(speech_request)
+        LOG.info(self._current_requests[iot_request_id].speech_requests[skill_id])
 
     def initialize(self):
         self.add_event(_BusKeys.RESPONSE, self._handle_response)
@@ -131,12 +170,16 @@ class SkillIoTControl(MycroftSkill):
 
     def _handle_response(self, message: Message):
         id = message.data.get(IOT_REQUEST_ID)
+        # TODO these should be logged, not exceptions
         if not id:
             raise Exception("No id found!")
-        if not id in self._current_requests:
+        if id not in self._current_requests:
             raise Exception("Request is not being tracked."
                             " This skill may have responded too late.")
-        self._current_requests[id].append(message)
+        if self._current_requests[id].status != IoTRequestStatus.POLLING:
+            raise Exception("Skill responded too late."
+                            " Request is no longer POLLING.")
+        self._current_requests[id].candidates.append(message)
 
     def _register_words(self, message: Message):
         type = message.data["type"]
@@ -151,21 +194,47 @@ class SkillIoTControl(MycroftSkill):
 
     def _run(self, message: Message):
         id = message.data.get(IOT_REQUEST_ID)
-        candidates = self._current_requests.get(id)
+        request = self._current_requests.get(id)
 
-        if candidates is None:
+        if request is None:
             raise Exception("This id is not being tracked!")
+
+        request.status = IoTRequestStatus.RUNNING
+        candidates = request.candidates
 
         if not candidates:
             self.speak_dialog('no.skills.can.handle')
-            return
+        else:
+            winners = self._pick_winners(candidates)
+            for winner in winners:
+                self.bus.emit(Message(
+                    _BusKeys.RUN + winner.data["skill_id"], winner.data))
 
-        del(self._current_requests[id])
-        winners = self._pick_winners(candidates)
-        for winner in winners:
-            self.bus.emit(Message(
-                _BusKeys.RUN + winner.data["skill_id"], winner.data))
-        self.acknowledge()
+            self.schedule_event(self._speak_or_acknowledge,
+                                1,  # TODO make this timeout a setting
+                                data={IOT_REQUEST_ID: id},
+                                name="SpeakOrAcknowledge")
+
+    def _speak_or_acknowledge(self, message: Message):
+        id = message.data.get(IOT_REQUEST_ID)
+        request = self._current_requests.get(id)
+
+        LOG.info("srs {}".format(request.speech_requests))
+        if not request.speech_requests:
+            self.acknowledge()
+        else:
+            for skill_id, requests in request.speech_requests.items():
+                for utterance, args, kwargs in requests:
+                    self.speak(utterance, *args, **kwargs)
+
+    def _delete_request(self, message: Message):
+        id = message.data.get(IOT_REQUEST_ID)
+        LOG.info("Delete request {id}".format(id=id))
+        try:
+            del(self._current_requests[id])
+        except KeyError:
+            pass
+
 
     def _pick_winners(self, candidates: List[Message]):
         # TODO - make this actually pick winners
