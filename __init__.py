@@ -47,7 +47,7 @@ class IoTRequestStatus(Enum):
     RUNNING = 1
 
 
-SpeechReqest = namedtuple('SpeechRequest', ["utterance", "args", "kwargs"])
+SpeechRequest = namedtuple('SpeechRequest', ["utterance", "args", "kwargs"])
 
 
 class TrackedIoTRequest():
@@ -60,7 +60,7 @@ class TrackedIoTRequest():
         self.id = id
         self.status = status
         self.candidates = []
-        self.speech_requests: DefaultDict[str, List[SpeechReqest]] = defaultdict(list)
+        self.speech_requests: DefaultDict[str, List[SpeechRequest]] = defaultdict(list)
 
 def _handle_iot_request(handler_function):
     def tracking_intent_handler(self, message):
@@ -95,7 +95,7 @@ class SkillIoTControl(MycroftSkill):
         args = message.data.get("speak_args")
         kwargs = message.data.get("speak_kwargs")
 
-        speech_request = SpeechReqest(utterance, args, kwargs)
+        speech_request = SpeechRequest(utterance, args, kwargs)
 
         if iot_request_id not in self._current_requests:
             LOG.warning("Dropping speech request from {skill_id} for"
