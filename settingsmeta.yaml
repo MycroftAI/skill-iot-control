@@ -1,0 +1,15 @@
+name: Skill IoT Control
+skillMetadata:
+    sections:
+        - name: Advanced settings
+          fields:
+              - type: label
+                label: "<b>Response Timeout</b>:<br/>
+                    This adjusts how long IoT skills will have to respond to
+                    requests from this Control skill. If skills do not respond
+                    before this timeout, they will not be eligible to handle
+                    the request."
+              - name: response_timeout
+                type: number
+                label: Response Timeout (in seconds)
+                value: 1

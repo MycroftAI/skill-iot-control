@@ -70,6 +70,10 @@ class SkillIoTControl(MycroftSkill):
         self._current_requests: Dict[str, TrackedIoTRequest] = dict()
         self._normalized_to_orignal_word_map: Dict[str, str] = dict()
 
+    @property
+    def response_timeout(self):
+        return self.settings.get('response_timeout')
+
     def _handle_speak(self, message: Message):
         iot_request_id = message.data.get(IOT_REQUEST_ID)
 
@@ -195,7 +199,7 @@ class SkillIoTControl(MycroftSkill):
                     _BusKeys.RUN + winner.data["skill_id"], winner.data))
 
             self.schedule_event(self._speak_or_acknowledge,
-                                1,  # TODO make this timeout a setting
+                                self.response_timeout,
                                 data={IOT_REQUEST_ID: id},
                                 name="SpeakOrAcknowledge")
 
@@ -272,11 +276,11 @@ class SkillIoTControl(MycroftSkill):
                                       state)
 
         self.schedule_event(self._delete_request,
-                            10,  # TODO make this timeout based on the other timeouts
+                            10 * self.response_timeout,
                             data={IOT_REQUEST_ID: id},
                             name="DeleteRequest")
         self.schedule_event(self._run,
-                            1,  # TODO make this timeout a setting
+                            self.response_timeout,
                             data={IOT_REQUEST_ID: id},
                             name="RunIotRequest")
 
