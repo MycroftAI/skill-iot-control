@@ -158,15 +158,15 @@ class SkillIoTControl(MycroftSkill):
 
     def _handle_response(self, message: Message):
         id = message.data.get(IOT_REQUEST_ID)
-        # TODO these should be logged, not exceptions
         if not id:
-            raise Exception("No id found!")
+            LOG.error("No id found in message data. Cannot handle this iot request!")
+            return
         if id not in self._current_requests:
-            raise Exception("Request is not being tracked."
-                            " This skill may have responded too late.")
+            LOG.warning("Request is not being tracked. This skill may have responded too late.")
+            return
         if self._current_requests[id].status != IoTRequestStatus.POLLING:
-            raise Exception("Skill responded too late."
-                            " Request is no longer POLLING.")
+            LOG.warning("Skill responded too late. Request is no longer POLLING.")
+            return
         self._current_requests[id].candidates.append(message)
 
     def _register_words(self, message: Message):
