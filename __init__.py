@@ -62,22 +62,6 @@ class TrackedIoTRequest():
         self.candidates = []
         self.speech_requests: DefaultDict[str, List[SpeechRequest]] = defaultdict(list)
 
-def _handle_iot_request(handler_function):
-    def tracking_intent_handler(self, message):
-        id = str(uuid4())
-        message.data[IOT_REQUEST_ID] = id
-        self._current_requests[id] = TrackedIoTRequest(id)
-        handler_function(self, message)
-        self.schedule_event(self._delete_request,
-                            10,  # TODO make this timeout based on the other timeouts
-                            data={IOT_REQUEST_ID: id},
-                            name="DeleteRequest")
-        self.schedule_event(self._run,
-                            1,  # TODO make this timeout a setting
-                            data={IOT_REQUEST_ID: id},
-                            name="RunIotRequest")
-    return tracking_intent_handler
-
 
 class SkillIoTControl(MycroftSkill):
 
@@ -246,8 +230,11 @@ class SkillIoTControl(MycroftSkill):
                 return e
         return None
 
-    @_handle_iot_request
     def _handle_iot_request(self, message: Message):
+        id = str(uuid4())
+        message.data[IOT_REQUEST_ID] = id
+        self._current_requests[id] = TrackedIoTRequest(id)
+
         data = self._clean_power_request(message.data)
         action = self._get_enum_from_data(Action, data)
         thing = self._get_enum_from_data(Thing, data)
@@ -283,6 +270,15 @@ class SkillIoTControl(MycroftSkill):
                                       original_entity or entity,
                                       original_scene or scene,
                                       state)
+
+        self.schedule_event(self._delete_request,
+                            10,  # TODO make this timeout based on the other timeouts
+                            data={IOT_REQUEST_ID: id},
+                            name="DeleteRequest")
+        self.schedule_event(self._run,
+                            1,  # TODO make this timeout a setting
+                            data={IOT_REQUEST_ID: id},
+                            name="RunIotRequest")
 
     def _trigger_iot_request(self, data: dict,
                              action: Action,
