@@ -207,7 +207,6 @@ class SkillIoTControl(MycroftSkill):
         id = message.data.get(IOT_REQUEST_ID)
         request = self._current_requests.get(id)
 
-        LOG.info("srs {}".format(request.speech_requests))
         if not request.speech_requests:
             self.acknowledge()
         else:
