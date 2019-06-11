@@ -104,7 +104,7 @@ class SkillIoTControl(MycroftSkill):
         self.add_event(_BusKeys.SPEAK, self._handle_speak)
         self.bus.emit(Message(_BusKeys.CALL_FOR_REGISTRATION, {}))
 
-        intent = (IntentBuilder('IoTRequestWithEntityOrAction')
+        intent = (IntentBuilder('IoTRequestWithEntityOrThing')
                     .one_of('ENTITY', *_THINGS)
                     .one_of(*_NON_QUERY_ACTIONS)
                     .optionally('SCENE')
@@ -112,7 +112,7 @@ class SkillIoTControl(MycroftSkill):
                     .build())
         self.register_intent(intent, self._handle_iot_request)
 
-        intent = (IntentBuilder('IoTRequestWithEntityAndAction')
+        intent = (IntentBuilder('IoTRequestWithEntityAndThing')
                     .require('ENTITY')
                     .one_of(*_THINGS)
                     .one_of(*_NON_QUERY_ACTIONS)
@@ -121,7 +121,7 @@ class SkillIoTControl(MycroftSkill):
                     .build())
         self.register_intent(intent, self._handle_iot_request)
 
-        intent = (IntentBuilder('IoTRequestWithEntityOrActionAndProperty')
+        intent = (IntentBuilder('IoTRequestWithEntityOrThingAndAttribute')
                     .one_of('ENTITY', *_THINGS)
                     .one_of(*_NON_QUERY_ACTIONS)
                     .one_of(*_ATTRIBUTES)
@@ -130,7 +130,7 @@ class SkillIoTControl(MycroftSkill):
                     .build())
         self.register_intent(intent, self._handle_iot_request)
 
-        intent = (IntentBuilder('IoTRequestWithEntityAndActionAndProperty')
+        intent = (IntentBuilder('IoTRequestWithEntityAndThingAndAttribute')
                     .require('ENTITY')
                     .one_of(*_THINGS)
                     .one_of(*_NON_QUERY_ACTIONS)
