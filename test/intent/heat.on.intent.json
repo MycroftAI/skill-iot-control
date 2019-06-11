@@ -1,0 +1,8 @@
+{
+  "utterance": "turn on the heat",
+  "intent_type": "IoTRequestWithEntityOrThing",
+  "intent": {
+    "ON": "on",
+    "HEAT": "heat"
+  }
+}

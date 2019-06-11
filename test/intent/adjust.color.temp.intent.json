@@ -1,0 +1,9 @@
+{
+  "utterance": "turn up the color temperature of the lights",
+  "intent_type": "IoTRequestWithEntityOrThingAndAttribute",
+  "intent": {
+    "INCREASE": "up",
+    "COLOR_TEMPERATURE": "color temperature",
+    "LIGHT": "lights"
+  }
+}

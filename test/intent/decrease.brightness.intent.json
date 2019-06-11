@@ -1,0 +1,8 @@
+{
+  "utterance": "turn down the lights",
+  "intent_type": "IoTRequestWithEntityOrThing",
+  "intent": {
+    "DECREASE": "down",
+    "LIGHT": "lights"
+  }
+}

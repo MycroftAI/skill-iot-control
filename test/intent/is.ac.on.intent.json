@@ -1,0 +1,9 @@
+{
+  "utterance": "is the ac on?",
+  "intent_type": "IoTRequestStateQuery",
+  "intent": {
+    "BINARY_QUERY": "is",
+    "POWERED": "on",
+    "AIR_CONDITIONING": "ac"
+  }
+}
