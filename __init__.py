@@ -210,9 +210,15 @@ class SkillIoTControl(MycroftSkill):
         if not request.speech_requests:
             self.acknowledge()
         else:
-            for skill_id, requests in request.speech_requests.items():
-                for utterance, args, kwargs in requests:
-                    self.speak(utterance, *args, **kwargs)
+            skill_id, requests = request.speech_requests.popitem()
+            for utterance, args, kwargs in requests:
+                self.speak(utterance, *args, **kwargs)
+            if request.speech_requests:
+                LOG.info("Ignoring speech requests from {speech_requests}. "
+                         "{skill_id} was the winner."
+                         .format(
+                             speech_requests=request.speech_requests,
+                             skill_id=skill_id))
 
     def _delete_request(self, message: Message):
         id = message.data.get(IOT_REQUEST_ID)
@@ -221,7 +227,6 @@ class SkillIoTControl(MycroftSkill):
             del(self._current_requests[id])
         except KeyError:
             pass
-
 
     def _pick_winners(self, candidates: List[Message]):
         # TODO - make this actually pick winners
